@@ -51,6 +51,11 @@ make test        # spins up a throwaway Postgres via testcontainers (needs Docke
 make test-race   # same, with the race detector
 ```
 
+### Tooling
+
+- **API collection:** open the [`bruno/`](bruno) folder in [Bruno](https://usebruno.com) → select the **Local** environment. Run **Create Wallet** first (it captures the new id into `{{walletId}}` for the rest).
+- **Debugging:** [`.vscode/launch.json`](.vscode/launch.json) has one-click configs for the service, the stub, and the tests (VS Code Go extension).
+
 ---
 
 ## API

@@ -1,0 +1,12 @@
+meta {
+  name: Balance
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/wallets/{{walletId}}/balance
+  auth: none
+}
+
+# Note: balance is an OPEN endpoint (spec: "anyone") — no X-Customer-Id required.

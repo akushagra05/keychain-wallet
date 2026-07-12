@@ -1,0 +1,22 @@
+meta {
+  name: Deduct
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/wallets/{{walletId}}/deduct
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  X-Customer-Id: {{customerId}}
+}
+
+body:json {
+  {
+    "order_id": "ord_1"
+  }
+}

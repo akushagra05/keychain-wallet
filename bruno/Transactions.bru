@@ -1,0 +1,21 @@
+meta {
+  name: Transactions
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/wallets/{{walletId}}/transactions?limit=50
+  auth: none
+}
+
+params:query {
+  limit: 50
+  ~cursor:
+  ~reference:
+  ~type: DEDUCT
+}
+
+headers {
+  X-Customer-Id: {{customerId}}
+}
