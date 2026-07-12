@@ -1,0 +1,12 @@
+# binaries
+/walletd
+/orderstub
+/out/
+*.exe
+
+# test artifacts
+*.test
+coverage.out
+
+# local env
+.env
