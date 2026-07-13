@@ -17,6 +17,8 @@ Everything below is in service of those two.
 
 ## Quickstart
 
+**Requirements:** Docker (for Postgres and `docker compose`). Go 1.22+ only if you run locally without Docker.
+
 ### Run the whole thing (Docker)
 
 ```bash
