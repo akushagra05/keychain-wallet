@@ -26,8 +26,8 @@ vars:pre-request {
 }
 
 script:post-response {
-  // Capture the new wallet id so the other requests can use {{walletId}}.
-  if (res.status === 201) {
+  // Capture the wallet id (created=201 or existing=200) for the other requests.
+  if (res.status === 201 || res.status === 200) {
     bru.setVar("walletId", res.body.id);
   }
 }
