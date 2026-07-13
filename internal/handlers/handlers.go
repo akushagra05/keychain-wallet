@@ -1,5 +1,4 @@
-// Package handlers is the HTTP layer: routing, request/response DTOs, and mapping
-// domain errors to status codes. It knows nothing about SQL.
+// Package handlers is the HTTP layer: routing, DTOs, and error-to-status mapping.
 package handlers
 
 import (
@@ -51,7 +50,7 @@ func (h *Handler) topup(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if _, err := requireOwnership(r, walletID); err != nil {
+	if _, err := h.requireOwnership(r, walletID); err != nil {
 		h.writeError(w, r, err)
 		return
 	}
@@ -78,7 +77,7 @@ func (h *Handler) deduct(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if _, err := requireOwnership(r, walletID); err != nil {
+	if _, err := h.requireOwnership(r, walletID); err != nil {
 		h.writeError(w, r, err)
 		return
 	}
@@ -124,7 +123,7 @@ func (h *Handler) transactions(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	if _, err := requireOwnership(r, walletID); err != nil {
+	if _, err := h.requireOwnership(r, walletID); err != nil {
 		h.writeError(w, r, err)
 		return
 	}

@@ -8,9 +8,8 @@ import (
 	"keychain-wallet/internal/models"
 )
 
-// ListTransactions returns a wallet's ledger newest-first with keyset pagination.
-// Optional filters: exact reference and/or type. Returns the page plus a cursor
-// for the next page (nil when the page is the last).
+// ListTransactions returns a wallet's ledger newest-first with keyset pagination
+// and optional reference/type filters; the returned cursor is nil on the last page.
 func (r *Repo) ListTransactions(ctx context.Context, walletID string, f models.TxFilter) ([]models.Entry, *models.Cursor, error) {
 	// Distinguish "no wallet" (404) from "wallet with no entries" (empty 200).
 	var exists bool

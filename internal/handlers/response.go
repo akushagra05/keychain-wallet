@@ -11,11 +11,8 @@ import (
 	"keychain-wallet/internal/models"
 )
 
-// ---- request DTOs ----
-
 type createWalletRequest struct {
-	// customer_id is intentionally NOT here — the owner comes from the
-	// authenticated caller (X-Customer-Id), never from the request body.
+	// no customer_id: the owner comes from the authenticated caller, not the body.
 	Currency string `json:"currency"`
 }
 
@@ -27,8 +24,6 @@ type topupRequest struct {
 type deductRequest struct {
 	OrderID string `json:"order_id"`
 }
-
-// ---- response DTOs ----
 
 type moneyResponse struct {
 	WalletID     string        `json:"wallet_id"`
@@ -58,8 +53,6 @@ type transactionsResponse struct {
 	Limit      int            `json:"limit"`
 }
 
-// ---- error envelope ----
-
 type errorEnvelope struct {
 	Error errorBody `json:"error"`
 }
@@ -69,8 +62,6 @@ type errorBody struct {
 	Message string         `json:"message"`
 	Details map[string]any `json:"details,omitempty"`
 }
-
-// ---- helpers ----
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -82,8 +73,7 @@ func writeErr(w http.ResponseWriter, status int, code, msg string, details map[s
 	writeJSON(w, status, errorEnvelope{Error: errorBody{Code: code, Message: msg, Details: details}})
 }
 
-// writeError maps a domain error to the right HTTP status + machine-readable code.
-// The code is what a caller (the Order Service) branches on.
+// writeError maps a domain error to its HTTP status + machine-readable code.
 func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *models.ValidationError
 	var ibe *models.InsufficientBalanceError
@@ -104,16 +94,12 @@ func (h *Handler) writeError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, models.ErrForbidden):
 		writeErr(w, http.StatusForbidden, "FORBIDDEN", "wallet does not belong to caller", nil)
 	default:
-		// Unexpected: log the real error, return a generic message. The request id
-		// (in the X-Request-Id header) ties the client's 500 to the server log.
 		h.log.ErrorContext(r.Context(), "internal error", "err", err, "path", r.URL.Path)
 		writeErr(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal error", nil)
 	}
 }
 
-// decodeJSON reads a JSON body (size-limited, unknown fields rejected). An empty
-// body is allowed and leaves dst at its zero value — required-field checks happen
-// downstream in the service (so e.g. POST /wallets with no body defaults currency).
+// decodeJSON reads a size-limited JSON body, rejecting unknown fields; an empty body is allowed.
 func decodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	dec.DisallowUnknownFields()

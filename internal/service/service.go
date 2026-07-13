@@ -1,6 +1,5 @@
-// Package service is the domain layer: business rules, input validation, and the
-// deduct-amount policy. It depends on the Repository interface it defines here
-// (persistence-agnostic) and knows nothing about HTTP or SQL.
+// Package service is the domain layer: business rules, validation, and the
+// deduct-amount policy. It defines the Repository interface it needs (no HTTP/SQL).
 package service
 
 import (
@@ -16,8 +15,7 @@ const (
 	maxPageLimit     = 100
 )
 
-// Repository is the persistence contract, defined consumer-side and satisfied by
-// the repository package.
+// Repository is the persistence contract (defined consumer-side).
 type Repository interface {
 	CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, error)
 	GetWallet(ctx context.Context, walletID string) (*models.Wallet, error)
@@ -38,8 +36,7 @@ func New(repo Repository, deductAmountMinor int64) *Service {
 // DeductAmountMinor exposes the configured per-order deduction (for the stub/tests).
 func (s *Service) DeductAmountMinor() int64 { return s.deductAmountMinor }
 
-// ClampPageLimit applies the default/max page-size bounds. Shared by the service
-// and the handler so the response's reported limit matches what was applied.
+// ClampPageLimit applies the default/max page-size bounds (shared with the handler).
 func ClampPageLimit(n int) int {
 	switch {
 	case n <= 0:
@@ -70,6 +67,19 @@ func (s *Service) GetBalance(ctx context.Context, walletID string) (*models.Wall
 	return s.repo.GetWallet(ctx, walletID)
 }
 
+// AuthorizeWalletAccess enforces that the caller owns the wallet (ErrForbidden if
+// not, ErrWalletNotFound if missing). Authorization is real; identity is header-simulated.
+func (s *Service) AuthorizeWalletAccess(ctx context.Context, callerID, walletID string) error {
+	w, err := s.repo.GetWallet(ctx, walletID)
+	if err != nil {
+		return err
+	}
+	if w.CustomerID != callerID {
+		return models.ErrForbidden
+	}
+	return nil
+}
+
 func (s *Service) TopUp(ctx context.Context, walletID, paymentRef string, amountMinor int64) (*models.MoneyResult, error) {
 	paymentRef = strings.TrimSpace(paymentRef)
 	if paymentRef == "" {
@@ -81,9 +91,8 @@ func (s *Service) TopUp(ctx context.Context, walletID, paymentRef string, amount
 	return s.repo.TopUp(ctx, walletID, paymentRef, amountMinor)
 }
 
-// Deduct applies the fixed, server-side per-order amount (the spec's ₹100).
-// Making the amount a config policy — not a client input — is deliberate: it
-// keeps the idempotency contract simple (a retry can never carry a different amount).
+// Deduct applies the fixed server-side amount (the spec's ₹100), kept as config
+// policy so a retry can never carry a different amount.
 func (s *Service) Deduct(ctx context.Context, walletID, orderID string) (*models.MoneyResult, error) {
 	orderID = strings.TrimSpace(orderID)
 	if orderID == "" {
@@ -92,8 +101,7 @@ func (s *Service) Deduct(ctx context.Context, walletID, orderID string) (*models
 	return s.repo.Deduct(ctx, walletID, orderID, s.deductAmountMinor)
 }
 
-// ListTransactions clamps the page size, decodes the cursor, and validates the
-// optional type filter before delegating.
+// ListTransactions clamps the page size, decodes the cursor, and validates the type filter.
 func (s *Service) ListTransactions(ctx context.Context, walletID string, limit int, cursorToken, reference, txType string) ([]models.Entry, *models.Cursor, error) {
 	f := models.TxFilter{Limit: ClampPageLimit(limit), Reference: strings.TrimSpace(reference)}
 

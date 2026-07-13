@@ -1,5 +1,4 @@
 // Package models holds the domain types and errors shared across layers.
-// It has no dependency on the HTTP or persistence layers.
 package models
 
 import (
@@ -9,8 +8,7 @@ import (
 	"time"
 )
 
-// TxType is the kind of money movement recorded on a ledger entry.
-// It is plain data (a column value), not a behavioural dispatcher.
+// TxType is the kind of money movement (plain data, not a dispatcher).
 type TxType string
 
 const (

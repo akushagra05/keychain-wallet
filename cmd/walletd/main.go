@@ -38,8 +38,7 @@ func run() error {
 	logger := newLogger(cfg.LogLevel)
 	slog.SetDefault(logger)
 
-	// Apply migrations before opening the app pool. Idempotent, so every boot
-	// converges the schema — `docker compose up` just works.
+	// Apply migrations before opening the app pool (idempotent).
 	if err := db.Migrate(cfg.DatabaseURL); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}

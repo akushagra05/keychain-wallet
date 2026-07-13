@@ -216,6 +216,34 @@ func TestAuth_MissingIdentity(t *testing.T) {
 	}
 }
 
+// A caller who is authenticated but does NOT own the wallet is forbidden (403).
+func TestAuth_WrongOwner(t *testing.T) {
+	walletID := createWallet(t) // owned by the default testCustomer
+	const intruder = "cust_intruder"
+
+	cases := []struct {
+		name    string
+		method  string
+		path    string
+		payload any
+	}{
+		{"topup", http.MethodPost, topupPath(walletID), map[string]any{"amount_minor": 100, "payment_ref": "p"}},
+		{"deduct", http.MethodPost, deductPath(walletID), map[string]any{"order_id": "o"}},
+		{"transactions", http.MethodGet, "/wallets/" + walletID + "/transactions", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, b, _, err := doReq(c.method, c.path, intruder, c.payload) // a different customer
+			if err != nil {
+				t.Fatalf("request: %v", err)
+			}
+			if s != http.StatusForbidden || errCode(b) != "FORBIDDEN" {
+				t.Fatalf("expected 403 FORBIDDEN, got %d %q", s, errCode(b))
+			}
+		})
+	}
+}
+
 // The core invariant after an arbitrary mix of operations: the materialized
 // balance always equals the sum of the ledger.
 func TestInvariant_BalanceEqualsLedgerSum(t *testing.T) {

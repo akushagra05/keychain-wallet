@@ -2,10 +2,8 @@ package handlers
 
 import "net/http"
 
-// Routes builds the HTTP handler: the Go 1.22+ ServeMux (method + path patterns,
-// no router dependency) wrapped in the middleware chain.
-//
-// Chain (outer → inner): requestID → logging → recoverPanic → mux.
+// Routes builds the stdlib ServeMux (Go 1.22 method+path routing) wrapped in the
+// middleware chain (outer→inner: requestID → logging → recoverPanic).
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 

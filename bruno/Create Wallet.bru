@@ -21,6 +21,10 @@ body:json {
   }
 }
 
+vars:pre-request {
+  baseUrl: localhost:8080
+}
+
 script:post-response {
   // Capture the new wallet id so the other requests can use {{walletId}}.
   if (res.status === 201) {

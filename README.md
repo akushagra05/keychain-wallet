@@ -72,7 +72,7 @@ Money is always **integer minor units (paise)** plus a `currency` — never a fl
 | `GET /wallets/{id}/transactions` | `X-Customer-Id` + owns | `?limit&cursor&reference&type` | `200` `{data,next_cursor,limit}` | `400` `401` `403` `404` |
 | `GET /healthz` | open | — | `200` | — |
 
-- **Auth is a documented *simulation*** (real authn/authz was out of scope). The caller identity comes from an `X-Customer-Id` header — standing in for what an auth gateway would inject from a *verified* JWT/session — and per-wallet operations run an ownership check (`ownsWallet`, currently a stub that always allows). This is **not** real security (a raw header is spoofable); it puts the checks in the exact places a real implementation would. Wallet **owner** therefore comes from the header, never the request body. `balance` is left open (the spec says "anyone"). See [internal/handlers/auth.go](internal/handlers/auth.go).
+- **Auth — real authorization, simulated identity.** The caller identity comes from an `X-Customer-Id` header (standing in for what an auth gateway would inject from a *verified* JWT/session) — so identity is a documented seam, **not** real security, since a raw header is spoofable. The **authorization is real**, though: per-wallet operations load the wallet and require `wallet.customer_id == caller` (403 otherwise). Wallet **owner** comes from the identity, never the request body. `balance` is left open (spec: "anyone"). See [internal/handlers/auth.go](internal/handlers/auth.go) + `AuthorizeWalletAccess`.
   - Nuance: `/deduct` is called by the Order Service (service-to-service), which in production would be authorized by service credentials/mTLS rather than customer ownership.
 - The **deduct amount is fixed server-side** (`DEDUCT_AMOUNT_MINOR`, default ₹100). The deduct body carries only `order_id`.
 - **Idempotency** is keyed on `order_id` (deduct) and `payment_ref` (topup). A retried request returns the *original* result with header `Idempotency-Replayed: true`.
@@ -235,7 +235,8 @@ The tests that matter ([`internal/integration`](internal/integration)):
   balance is rejected by the DB (the backstop).
 - Plus idempotency (sequential + topup), cross-wallet key conflict (`409`),
   not-found (`404`), validation (`400`), keyset pagination, and the auth seam
-  (`TestAuth_MissingIdentity`: protected endpoints `401` without identity, balance open).
+  (`TestAuth_MissingIdentity`: `401` without identity, balance open;
+  `TestAuth_WrongOwner`: `403` for a non-owner).
 
 All pass under `-race`.
 
@@ -252,11 +253,11 @@ All pass under `-race`.
 - **Wallet creation is not idempotent.** A lost-response retry of `POST /wallets` can
   create a duplicate wallet. Low stakes (it's setup); the fix is a client-supplied
   creation key.
-- **Auth is simulated, not real.** Identity is trusted from an `X-Customer-Id` header
-  and the `ownsWallet` authorization check is a stub that always allows. This is a
-  documented *seam*, not security — a real system verifies a JWT/session and enforces
-  ownership (and `/deduct`, being service-to-service, would use service credentials).
-  No rate limiting either.
+- **Auth identity is simulated (spoofable).** The *authorization* is real (per-wallet
+  ownership: `wallet.customer_id == caller`, with a 403 test), but it's only as strong
+  as the identity it checks — and identity is trusted from an `X-Customer-Id` header,
+  not a verified JWT. A real system verifies a JWT/session; `/deduct`, being
+  service-to-service, would use service credentials. No rate limiting either.
 
 ---
 

@@ -1,14 +1,6 @@
-// Command orderstub is a stand-in for the Order Service. It drives the Wallet
-// Service over HTTP to demonstrate the /deduct integration end to end:
-//
-//  1. create a wallet and top it up
-//  2. place orders (each deducts ₹100) until funds run out (402)
-//  3. retry an already-charged order -> idempotent replay (no double charge)
-//  4. retry the top-up -> idempotent replay (no double credit)
-//  5. print the resulting ledger
-//
-// It also shows the retry-classification a real caller would use: retry only
-// transient failures, treat 402/4xx as final.
+// Command orderstub stands in for the Order Service: it drives the Wallet Service
+// over HTTP to demo the /deduct integration (topup, orders until 402, idempotent
+// replay, ledger) and how a caller classifies responses for retries.
 package main
 
 import (
@@ -20,8 +12,7 @@ import (
 	"os"
 )
 
-// demoCustomer stands in for the authenticated caller identity that a real
-// Order Service would present. It's sent as X-Customer-Id on every request.
+// demoCustomer is the caller identity sent as X-Customer-Id on every request.
 const demoCustomer = "cust_demo"
 
 func baseURL() string {

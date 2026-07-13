@@ -16,12 +16,8 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Migrate applies all pending "up" migrations. It is safe to call on every boot:
-// already-applied migrations are skipped, so `docker compose up` just works.
-//
-// The app itself runs on pgxpool (native); migrations use a short-lived
-// database/sql connection via the pgx stdlib driver, which keeps golang-migrate
-// happy without threading URL schemes around.
+// Migrate applies pending "up" migrations; safe on every boot (applied ones are
+// skipped). Uses a short-lived database/sql connection via the pgx stdlib driver.
 func Migrate(databaseURL string) error {
 	src, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
