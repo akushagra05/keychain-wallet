@@ -35,12 +35,16 @@ func (h *Handler) createWallet(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r, err)
 		return
 	}
-	wallet, err := h.svc.CreateWallet(r.Context(), caller, req.Currency)
+	wallet, created, err := h.svc.CreateWallet(r.Context(), caller, req.Currency)
 	if err != nil {
 		h.writeError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, wallet)
+	status := http.StatusOK
+	if created {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, wallet)
 }
 
 // POST /wallets/{id}/topup

@@ -18,9 +18,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -85,8 +87,18 @@ func die(msg string, err error) {
 	os.Exit(1)
 }
 
-// testCustomer is the caller identity sent by default on every request.
-const testCustomer = "cust_test"
+// walletOwners maps wallet id -> owning customer, so requests auto-authenticate
+// as the owner (tests run sequentially).
+var walletOwners = map[string]string{}
+
+// callerFor resolves the owning customer for a /wallets/{id}/... path.
+func callerFor(path string) string {
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	if len(parts) >= 2 && parts[0] == "wallets" {
+		return walletOwners[parts[1]]
+	}
+	return ""
+}
 
 // ---- low-level HTTP (goroutine-safe: returns errors instead of calling t) ----
 
@@ -118,9 +130,9 @@ func doReq(method, path, caller string, payload any) (int, map[string]any, http.
 	return resp.StatusCode, out, resp.Header, nil
 }
 
-// rawJSON sends a request as the default test customer.
+// rawJSON sends a request authenticated as the wallet's owner (resolved from the path).
 func rawJSON(method, path string, payload any) (int, map[string]any, http.Header, error) {
-	return doReq(method, path, testCustomer, payload)
+	return doReq(method, path, callerFor(path), payload)
 }
 
 // ---- test-friendly wrappers (fail the test on transport error) ----
@@ -147,11 +159,17 @@ func get(t *testing.T, path string) (int, map[string]any, http.Header) {
 
 func createWallet(t *testing.T) string {
 	t.Helper()
-	s, b, _ := post(t, "/wallets", map[string]any{}) // owner comes from X-Customer-Id (via rawJSON)
+	customer := "cust_" + uuid.NewString()
+	s, b, _, err := doReq(http.MethodPost, "/wallets", customer, map[string]any{})
+	if err != nil {
+		t.Fatalf("create wallet: %v", err)
+	}
 	if s != http.StatusCreated {
 		t.Fatalf("create wallet: status %d body %v", s, b)
 	}
-	return b["id"].(string)
+	id := b["id"].(string)
+	walletOwners[id] = customer
+	return id
 }
 
 func topup(t *testing.T, walletID, paymentRef string, amountMinor int64) {

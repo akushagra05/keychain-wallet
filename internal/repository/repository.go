@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,10 +31,31 @@ type querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func (r *Repo) CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, error) {
+// CreateWallet is get-or-create on (customer_id, currency); created=false when it already existed.
+func (r *Repo) CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, bool, error) {
 	row := r.pool.QueryRow(ctx,
 		`INSERT INTO wallets (customer_id, currency) VALUES ($1, $2)
 		 RETURNING id::text, customer_id, currency, balance_minor, created_at, updated_at`,
+		customerID, currency)
+	w, err := scanWallet(row)
+	if err == nil {
+		return w, true, nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+		existing, e := r.walletByCustomer(ctx, customerID, currency)
+		if e != nil {
+			return nil, false, e
+		}
+		return existing, false, nil
+	}
+	return nil, false, err
+}
+
+func (r *Repo) walletByCustomer(ctx context.Context, customerID, currency string) (*models.Wallet, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id::text, customer_id, currency, balance_minor, created_at, updated_at
+		 FROM wallets WHERE customer_id = $1 AND currency = $2`,
 		customerID, currency)
 	return scanWallet(row)
 }

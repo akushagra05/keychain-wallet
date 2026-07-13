@@ -1,4 +1,5 @@
--- wallets: account with a materialized balance (paise). The CHECK is the non-negative backstop.
+-- wallets: one account per (customer, currency) with a materialized balance (paise).
+-- CHECK is the non-negative backstop; the UNIQUE makes creation idempotent (get-or-create).
 CREATE TABLE wallets (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id   TEXT        NOT NULL,
@@ -6,7 +7,8 @@ CREATE TABLE wallets (
     balance_minor BIGINT      NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT wallets_balance_non_negative CHECK (balance_minor >= 0)
+    CONSTRAINT wallets_balance_non_negative CHECK (balance_minor >= 0),
+    CONSTRAINT wallets_customer_currency_unique UNIQUE (customer_id, currency)
 );
 
 -- ledger_entries: append-only source of truth. amount_minor is signed (+credit / -debit);

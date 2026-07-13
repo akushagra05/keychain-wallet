@@ -67,7 +67,7 @@ Money is always **integer minor units (paise)** plus a `currency` — never a fl
 
 | Method & path | Auth | Body | Success | Notable errors |
 |---|---|---|---|---|
-| `POST /wallets` | `X-Customer-Id` | `{"currency?"}` | `201` wallet | `400` `401` |
+| `POST /wallets` | `X-Customer-Id` | `{"currency?"}` | `201` created / `200` existing | `400` `401` |
 | `POST /wallets/{id}/topup` | `X-Customer-Id` + owns | `{"amount_minor","payment_ref"}` | `200` `{wallet_id,balance_minor,currency,entry}` | `400` `401` `403` `404` `409` |
 | `POST /wallets/{id}/deduct` | `X-Customer-Id` + owns | `{"order_id"}` | `200` `{wallet_id,balance_minor,currency,entry}` | `400` `401` `403` **`402`** `404` `409` |
 | `GET /wallets/{id}/balance` | open | — | `200` `{wallet_id,balance_minor,currency}` | `404` |
@@ -76,6 +76,7 @@ Money is always **integer minor units (paise)** plus a `currency` — never a fl
 
 - **Auth — real authorization, simulated identity.** The caller identity comes from an `X-Customer-Id` header (standing in for what an auth gateway would inject from a *verified* JWT/session) — so identity is a documented seam, **not** real security, since a raw header is spoofable. The **authorization is real**, though: per-wallet operations load the wallet and require `wallet.customer_id == caller` (403 otherwise). Wallet **owner** comes from the identity, never the request body. `balance` is left open (spec: "anyone"). See [internal/handlers/auth.go](internal/handlers/auth.go) + `AuthorizeWalletAccess`.
   - Nuance: `/deduct` is called by the Order Service (service-to-service), which in production would be authorized by service credentials/mTLS rather than customer ownership.
+- **Wallet creation is idempotent** (get-or-create): one wallet per `(customer_id, currency)`. A repeat `POST /wallets` returns the existing wallet (`200`) instead of a duplicate; a new currency makes a new wallet (`201`).
 - The **deduct amount is fixed server-side** (`DEDUCT_AMOUNT_MINOR`, default ₹100). The deduct body carries only `order_id`.
 - **Idempotency** is keyed on `order_id` (deduct) and `payment_ref` (topup). A retried request returns the *original* result with header `Idempotency-Replayed: true`.
 - **Errors** use a consistent envelope; the `code` is what a caller branches on:
@@ -93,7 +94,8 @@ Money is always **integer minor units (paise)** plus a `currency` — never a fl
 
 Three tables ([`internal/db/migrations`](internal/db/migrations)):
 
-**`wallets`** — the account. `balance_minor` is a *materialized* balance with a
+**`wallets`** — one account per `(customer_id, currency)` (a `UNIQUE` constraint,
+which makes creation idempotent). `balance_minor` is a *materialized* balance with a
 DB-level `CHECK (balance_minor >= 0)`.
 
 **`ledger_entries`** — append-only, immutable source of truth. `amount_minor` is
@@ -235,7 +237,8 @@ The tests that matter ([`internal/integration`](internal/integration)):
 - **`TestInvariant_BalanceEqualsLedgerSum`** — after a mixed workload, `balance == SUM(ledger)`.
 - **`TestCheckConstraint_BlocksNegativeBalance`** — a raw `UPDATE` to a negative
   balance is rejected by the DB (the backstop).
-- Plus idempotency (sequential + topup), cross-wallet key conflict (`409`),
+- Plus idempotency (sequential + topup), idempotent creation / get-or-create
+  (`TestCreateWallet_Idempotent`), cross-wallet key conflict (`409`),
   not-found (`404`), validation (`400`), keyset pagination, and the auth seam
   (`TestAuth_MissingIdentity`: `401` without identity, balance open;
   `TestAuth_WrongOwner`: `403` for a non-owner).
@@ -252,9 +255,6 @@ All pass under `-race`.
   reading the column down the page could look non-monotonic in rare overlapping cases.
   Strict apply-order sequencing needs a dedicated post-commit sequence — deliberately
   out of scope here.
-- **Wallet creation is not idempotent.** A lost-response retry of `POST /wallets` can
-  create a duplicate wallet. Low stakes (it's setup); the fix is a client-supplied
-  creation key.
 - **Auth identity is simulated (spoofable).** The *authorization* is real (per-wallet
   ownership: `wallet.customer_id == caller`, with a 403 test), but it's only as strong
   as the identity it checks — and identity is trusted from an `X-Customer-Id` header,

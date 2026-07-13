@@ -140,14 +140,37 @@ func TestIdempotency_CrossWalletConflict(t *testing.T) {
 
 func TestWalletNotFound(t *testing.T) {
 	fake := uuid.NewString()
+	// balance is open; deduct/topup need an identity, then 404 from the ownership load.
 	if s, b, _ := get(t, "/wallets/"+fake+"/balance"); s != http.StatusNotFound || errCode(b) != "WALLET_NOT_FOUND" {
 		t.Fatalf("balance on missing wallet: status=%d code=%q", s, errCode(b))
 	}
-	if s, _, _ := post(t, deductPath(fake), map[string]any{"order_id": "x"}); s != http.StatusNotFound {
+	if s, _, _, _ := doReq(http.MethodPost, deductPath(fake), "someone", map[string]any{"order_id": "x"}); s != http.StatusNotFound {
 		t.Fatalf("deduct on missing wallet: expected 404, got %d", s)
 	}
-	if s, _, _ := post(t, topupPath(fake), map[string]any{"amount_minor": 100, "payment_ref": "p"}); s != http.StatusNotFound {
+	if s, _, _, _ := doReq(http.MethodPost, topupPath(fake), "someone", map[string]any{"amount_minor": 100, "payment_ref": "p"}); s != http.StatusNotFound {
 		t.Fatalf("topup on missing wallet: expected 404, got %d", s)
+	}
+}
+
+// Creation is idempotent per (customer, currency): repeat -> same wallet (200);
+// a new currency -> a new wallet (201).
+func TestCreateWallet_Idempotent(t *testing.T) {
+	customer := "cust_" + uuid.NewString()
+
+	s1, b1, _, _ := doReq(http.MethodPost, "/wallets", customer, map[string]any{})
+	if s1 != http.StatusCreated {
+		t.Fatalf("first create: expected 201, got %d", s1)
+	}
+	s2, b2, _, _ := doReq(http.MethodPost, "/wallets", customer, map[string]any{})
+	if s2 != http.StatusOK {
+		t.Fatalf("repeat create: expected 200, got %d", s2)
+	}
+	if b1["id"] != b2["id"] {
+		t.Fatalf("repeat create returned a different wallet")
+	}
+	s3, b3, _, _ := doReq(http.MethodPost, "/wallets", customer, map[string]any{"currency": "USD"})
+	if s3 != http.StatusCreated || b3["id"] == b1["id"] {
+		t.Fatalf("different currency should create a new wallet (got %d, same id=%v)", s3, b3["id"] == b1["id"])
 	}
 }
 

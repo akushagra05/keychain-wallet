@@ -17,7 +17,7 @@ const (
 
 // Repository is the persistence contract (defined consumer-side).
 type Repository interface {
-	CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, error)
+	CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, bool, error)
 	GetWallet(ctx context.Context, walletID string) (*models.Wallet, error)
 	TopUp(ctx context.Context, walletID, paymentRef string, amountMinor int64) (*models.MoneyResult, error)
 	Deduct(ctx context.Context, walletID, orderID string, amountMinor int64) (*models.MoneyResult, error)
@@ -48,17 +48,17 @@ func ClampPageLimit(n int) int {
 	}
 }
 
-func (s *Service) CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, error) {
+func (s *Service) CreateWallet(ctx context.Context, customerID, currency string) (*models.Wallet, bool, error) {
 	customerID = strings.TrimSpace(customerID)
 	if customerID == "" {
-		return nil, models.Validationf("customer_id is required")
+		return nil, false, models.Validationf("customer_id is required")
 	}
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 	if currency == "" {
 		currency = defaultCurrency
 	}
 	if len(currency) != 3 {
-		return nil, models.Validationf("currency must be a 3-letter ISO code")
+		return nil, false, models.Validationf("currency must be a 3-letter ISO code")
 	}
 	return s.repo.CreateWallet(ctx, customerID, currency)
 }
